@@ -25,4 +25,3 @@ Aplicación mínima para seleccionar un archivo XML, transformarlo con XSLT y ve
 ## Notas
 
 - El resultado se guarda en la carpeta `converted` dentro del proyecto con el sufijo `_HTML.html`.
-- Si existe `Titulo_7472.xml` en la carpeta, se selecciona automáticamente al iniciar.
