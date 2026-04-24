@@ -1,4 +1,5 @@
 import re
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -6,8 +7,12 @@ from lxml import etree
 
 from resolver import XsltHttpResolver
 
-DEFAULT_OUTPUT_DIR = Path(__file__).parent / "converted"
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    BASE_DIR = Path(__file__).parent
 
+DEFAULT_OUTPUT_DIR = BASE_DIR / "converted"
 
 def extract_xslt_url(xml_path: Path) -> Optional[str]:
     """Return the XSLT URL declared in <?xml-stylesheet?>, or the xsl-html attribute."""
