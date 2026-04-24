@@ -14,21 +14,23 @@ else:
 
 DEFAULT_OUTPUT_DIR = BASE_DIR / "converted"
 
-def extract_xslt_url(xml_path: Path) -> Optional[str]:
-    """Return the XSLT URL declared in <?xml-stylesheet?>, or the xsl-html attribute."""
-    tree = etree.parse(str(xml_path))
-    root = tree.getroot()
-    for node in root.itersiblings(preceding=True):
-        if isinstance(node, etree._ProcessingInstruction) and node.target == "xml-stylesheet":
-            m = re.search(r'href=["\']([^"\']+)["\']', node.text or "")
-            if m:
-                return m.group(1)
-    return root.get("xsl-html")
-
 
 class XmlTransformer:
-    def __init__(self, xslt_url: Optional[str] = None) -> None:
+    def __init__(self, xslt_url: Optional[str] = None, timeout: int = 15) -> None:
         self.xslt_url = xslt_url
+        self.timeout = timeout
+
+    @staticmethod
+    def extract_xslt_url(xml_path: Path) -> Optional[str]:
+        """Return the XSLT URL declared in <?xml-stylesheet?>, or the xsl-html attribute."""
+        tree = etree.parse(str(xml_path))
+        root = tree.getroot()
+        for node in root.itersiblings(preceding=True):
+            if isinstance(node, etree._ProcessingInstruction) and node.target == "xml-stylesheet":
+                m = re.search(r'href=["\']([^"\']+)["\']', node.text or "")
+                if m:
+                    return m.group(1)
+        return root.get("xsl-html")
 
     def transform(
         self,
@@ -58,7 +60,7 @@ class XmlTransformer:
 
     def _load_xslt(self) -> etree._ElementTree:
         parser = etree.XMLParser()
-        parser.resolvers.add(XsltHttpResolver(self.xslt_url))
+        parser.resolvers.add(XsltHttpResolver(self.xslt_url, self.timeout))
         return etree.parse(self.xslt_url, parser)
 
     @staticmethod
