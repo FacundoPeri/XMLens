@@ -8,11 +8,9 @@ from lxml import etree
 from resolver import XsltHttpResolver
 
 if getattr(sys, 'frozen', False):
-    BASE_DIR = Path(sys._MEIPASS)
+    DEFAULT_OUTPUT_DIR = Path.home() / "Documents" / "XMLens" / "converted"
 else:
-    BASE_DIR = Path(__file__).parent
-
-DEFAULT_OUTPUT_DIR = BASE_DIR / "converted"
+    DEFAULT_OUTPUT_DIR = Path(__file__).parent / "converted"
 
 
 class XmlTransformer:
