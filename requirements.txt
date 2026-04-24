@@ -1,2 +1,4 @@
 requests>=2.33,<3
 lxml>=6.1,<7
+PyQt6>=6.11,<7
+PyQt6-WebEngine>=6.11,<7
