@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 import threading
 import webbrowser
 from pathlib import Path
@@ -7,7 +9,16 @@ from typing import Optional
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
-from transformer import DEFAULT_OUTPUT_DIR, XmlTransformer, extract_xslt_url
+from transformer import DEFAULT_OUTPUT_DIR, XmlTransformer
+
+
+def _open_path(path: Path) -> None:
+    if sys.platform == "win32":
+        os.startfile(path)
+    elif sys.platform == "darwin":
+        subprocess.run(["open", str(path)])
+    else:
+        subprocess.run(["xdg-open", str(path)])
 
 # ── Palette ───────────────────────────────────────────────────────────────────
 _BG      = "#f4f6f9"
@@ -242,7 +253,7 @@ class XmlVisualizerApp(tk.Tk):
         self._refresh_xslt_url()
 
     def _refresh_xslt_url(self) -> None:
-        url = extract_xslt_url(self.selected_file) or ""
+        url = XmlTransformer.extract_xslt_url(self.selected_file) or ""
         self.transformer.xslt_url = url
         self.xslt_entry.delete(0, "end")
         self.xslt_entry.insert(0, url)
@@ -255,7 +266,7 @@ class XmlVisualizerApp(tk.Tk):
         if not self.selected_file or not self.selected_file.exists():
             messagebox.showwarning("Atención", "No hay un archivo XML válido seleccionado.")
             return
-        os.startfile(self.selected_file)
+        _open_path(self.selected_file)
         self._append_status(f"Abriendo: {self.selected_file}")
 
     def _select_output_folder(self) -> None:
@@ -313,7 +324,7 @@ class XmlVisualizerApp(tk.Tk):
 
     def _open_output_folder(self) -> None:
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        os.startfile(self.output_dir)
+        _open_path(self.output_dir)
         self._append_status(f"Carpeta de salida abierta: {self.output_dir}")
 
     def _clear_status(self) -> None:
