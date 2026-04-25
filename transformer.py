@@ -1,17 +1,22 @@
+import hashlib
 import re
 import sys
+from io import BytesIO
 from pathlib import Path
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
+import requests
 from lxml import etree
 
 from resolver import XsltHttpResolver
 
 if getattr(sys, 'frozen', False):
     DEFAULT_OUTPUT_DIR = Path.home() / "Documents" / "XMLens" / "converted"
+    _CACHE_DIR = Path.home() / "Documents" / "XMLens" / "xslt_cache"
 else:
     DEFAULT_OUTPUT_DIR = Path(__file__).parent / "converted"
+    _CACHE_DIR = Path.home() / ".xmlens" / "xslt_cache"
 
 
 class XmlTransformer:
@@ -36,7 +41,6 @@ class XmlTransformer:
     @staticmethod
     def is_local(url: str) -> bool:
         parsed = urlparse(url)
-        # Empty scheme (relative/absolute paths) or single-char scheme (Windows drive letter)
         return not parsed.scheme or len(parsed.scheme) == 1 or parsed.scheme == "file"
 
     def transform(
@@ -87,13 +91,38 @@ class XmlTransformer:
         else:
             if url == self._cached_url:
                 return self._cached_xslt
-            parser = etree.XMLParser()
-            parser.resolvers.add(XsltHttpResolver(url, self.timeout))
-            self._cached_xslt = etree.parse(url, parser)
+            self._cached_xslt = self._load_xslt_http(url)
             self._cached_mtime = None
 
         self._cached_url = url
         return self._cached_xslt
+
+    def _load_xslt_http(self, url: str) -> etree._ElementTree:
+        cached_path = self._disk_cache_path(url)
+        if cached_path.exists():
+            content = cached_path.read_bytes()
+        else:
+            resp = requests.get(url, timeout=self.timeout)
+            resp.raise_for_status()
+            content = resp.content
+            _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            cached_path.write_bytes(content)
+        parser = etree.XMLParser()
+        parser.resolvers.add(XsltHttpResolver(url, self.timeout))
+        return etree.parse(BytesIO(content), parser)
+
+    @staticmethod
+    def _disk_cache_path(url: str) -> Path:
+        return _CACHE_DIR / f"{hashlib.sha256(url.encode()).hexdigest()[:16]}.xsl"
+
+    @staticmethod
+    def clear_disk_cache() -> int:
+        if not _CACHE_DIR.exists():
+            return 0
+        files = list(_CACHE_DIR.glob("*.xsl"))
+        for f in files:
+            f.unlink()
+        return len(files)
 
     @staticmethod
     def _output_path(xml_path: Path, output_dir: Optional[Path] = None) -> Path:
