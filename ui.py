@@ -1,8 +1,9 @@
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
-from PyQt6.QtCore import Qt, QTimer, QUrl, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QSettings, QTimer, QUrl, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QDesktopServices
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -132,7 +133,7 @@ def _card() -> QFrame:
 # ── Worker ────────────────────────────────────────────────────────────────────
 
 class _TransformWorker(QThread):
-    finished = pyqtSignal(object)
+    finished = pyqtSignal(object, object)  # (Path, list[str] warnings)
     failed   = pyqtSignal(Exception)
 
     def __init__(self, transformer: XmlTransformer, xml_path: Path, output_dir: Path) -> None:
@@ -143,8 +144,8 @@ class _TransformWorker(QThread):
 
     def run(self) -> None:
         try:
-            result = self._transformer.transform(self._xml_path, output_dir=self._output_dir)
-            self.finished.emit(result)
+            result_path, warnings = self._transformer.transform(self._xml_path, output_dir=self._output_dir)
+            self.finished.emit(result_path, warnings)
         except Exception as exc:
             self.failed.emit(exc)
 
@@ -166,8 +167,10 @@ class XmlVisualizerApp(QMainWindow):
         self.setWindowTitle("Visualizador de XMLS")
         self.resize(1200, 700)
         self.setMinimumSize(800, 500)
+        self.setAcceptDrops(True)
         self._build_interface()
         self._apply_theme(LIGHT)
+        self._restore_settings()
         self.showMaximized()
 
     # ── Build ─────────────────────────────────────────────────────────────────
@@ -257,7 +260,7 @@ class XmlVisualizerApp(QMainWindow):
         layout.addWidget(self._build_file_row())
         layout.addSpacing(12)
 
-        layout.addWidget(_section_lbl("URL DE XSLT"))
+        layout.addWidget(_section_lbl("URL / RUTA DE XSLT"))
         layout.addSpacing(4)
         layout.addWidget(self._build_xslt_row())
         layout.addSpacing(12)
@@ -280,7 +283,6 @@ class XmlVisualizerApp(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Header con nombre de archivo y botón cerrar — oculto hasta que haya contenido
         self._viewer_header = QWidget()
         self._viewer_header.setObjectName("bg")
         hdr_inner = QWidget()
@@ -309,7 +311,6 @@ class XmlVisualizerApp(QMainWindow):
         self._viewer_header.setVisible(False)
         layout.addWidget(self._viewer_header)
 
-        # Stack: placeholder (índice 0) / visor web (índice 1)
         self._stack = QStackedWidget()
         self._stack.addWidget(self._build_placeholder())
 
@@ -318,7 +319,7 @@ class XmlVisualizerApp(QMainWindow):
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
         self._viewer.setStyleSheet("border:none;")
-        self._viewer.load(QUrl("about:blank"))  # pre-arranca el proceso de Chromium
+        self._viewer.load(QUrl("about:blank"))
         self._stack.addWidget(self._viewer)
 
         layout.addWidget(self._stack, stretch=1)
@@ -336,7 +337,7 @@ class XmlVisualizerApp(QMainWindow):
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon)
 
-        text = QLabel("Seleccioná un XML y transformalo\npara ver el resultado aquí")
+        text = QLabel("Seleccioná un XML y transformalo\npara ver el resultado aquí\n\nTambién podés arrastrar un archivo .xml")
         text.setObjectName("placeholder-text")
         text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(text)
@@ -364,9 +365,12 @@ class XmlVisualizerApp(QMainWindow):
     def _build_xslt_row(self) -> QFrame:
         card = _card()
         row  = QHBoxLayout(card)
-        row.setContentsMargins(12, 2, 12, 2)
+        row.setContentsMargins(12, 2, 6, 2)
         self._xslt_entry = QLineEdit()
-        row.addWidget(self._xslt_entry)
+        row.addWidget(self._xslt_entry, stretch=1)
+        local_btn = _secondary_btn("📁  Local")
+        local_btn.clicked.connect(self._select_local_xslt)
+        row.addWidget(local_btn)
         return card
 
     def _build_output_row(self) -> QFrame:
@@ -435,18 +439,64 @@ class XmlVisualizerApp(QMainWindow):
         self._apply_theme(new)
         self._theme_btn.setText("☀" if new is DARK else "🌙")
 
+    # ── Settings ──────────────────────────────────────────────────────────────
+
+    def _save_settings(self) -> None:
+        s = QSettings("XMLens", "XMLens")
+        s.setValue("output_dir", str(self.output_dir))
+        s.setValue("xslt_url", self._xslt_entry.text())
+        s.setValue("splitter_state", self._splitter.saveState())
+        s.setValue("theme", "dark" if self._theme is DARK else "light")
+
+    def _restore_settings(self) -> None:
+        s = QSettings("XMLens", "XMLens")
+
+        output_dir = s.value("output_dir")
+        if output_dir and Path(output_dir).exists():
+            self.output_dir = Path(output_dir)
+            self._output_label.setText(str(self.output_dir))
+
+        xslt_url = s.value("xslt_url", "")
+        if xslt_url:
+            self._xslt_entry.setText(xslt_url)
+            self.transformer.xslt_url = xslt_url
+
+        state = s.value("splitter_state")
+        if state:
+            self._splitter.restoreState(state)
+
+        if s.value("theme") == "dark":
+            self._apply_theme(DARK)
+            self._theme_btn.setText("☀")
+
+    # ── Drag & Drop ───────────────────────────────────────────────────────────
+
+    def dragEnterEvent(self, event) -> None:
+        if event.mimeData().hasUrls():
+            if any(u.toLocalFile().lower().endswith(".xml") for u in event.mimeData().urls()):
+                event.acceptProposedAction()
+
+    def dropEvent(self, event) -> None:
+        for url in event.mimeData().urls():
+            path_str = url.toLocalFile()
+            if path_str.lower().endswith(".xml"):
+                self._load_xml_file(Path(path_str))
+                break
+
     # ── Handlers ──────────────────────────────────────────────────────────────
 
     def _select_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Seleccionar XML", "", "Archivos XML (*.xml)")
-        if not path:
-            return
-        self.selected_file = Path(path)
-        self._file_label.setText(self.selected_file.name)
+        if path:
+            self._load_xml_file(Path(path))
+
+    def _load_xml_file(self, path: Path) -> None:
+        self.selected_file = path
+        self._file_label.setText(path.name)
         self._file_label.setObjectName("text")
         self._file_label.style().unpolish(self._file_label)
         self._file_label.style().polish(self._file_label)
-        self._log_append(f"Seleccionado: {self.selected_file}")
+        self._log_append(f"Seleccionado: {path}")
         self._refresh_xslt_url()
 
     def _refresh_xslt_url(self) -> None:
@@ -473,6 +523,15 @@ class XmlVisualizerApp(QMainWindow):
         self._output_label.setText(str(self.output_dir))
         self._log_append(f"Carpeta de salida: {self.output_dir}")
 
+    def _select_local_xslt(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Seleccionar XSLT local", "", "Archivos XSLT (*.xsl *.xslt)"
+        )
+        if path:
+            self._xslt_entry.setText(path)
+            self.transformer.xslt_url = path
+            self._log_append(f"XSLT local: {Path(path).name}")
+
     def _convert_and_open(self) -> None:
         if self._worker and self._worker.isRunning():
             return
@@ -498,11 +557,13 @@ class XmlVisualizerApp(QMainWindow):
         self._convert_btn.setText(f"{_SPINNER[self._spin_idx]}   Transformando…")
         self._spin_idx = (self._spin_idx + 1) % len(_SPINNER)
 
-    def _on_transform_done(self, result_path: Path) -> None:
+    def _on_transform_done(self, result_path: Path, warnings: List[str]) -> None:
         self._spin_timer.stop()
         self._convert_btn.setEnabled(True)
         self._convert_btn.setText("▶   Transformar")
         self._log_append(f"Generado: {result_path}")
+        for w in warnings:
+            self._log_append(f"⚠  XSLT: {w}")
         self._show_in_viewer(result_path)
 
     def _on_transform_error(self, error: Exception) -> None:
@@ -535,7 +596,8 @@ class XmlVisualizerApp(QMainWindow):
         self._log_append("Registro limpiado.")
 
     def _log_append(self, message: str) -> None:
-        self._log.append(f"›  {message}")
+        ts = datetime.now().strftime("%H:%M:%S")
+        self._log.append(f"[{ts}]  ›  {message}")
 
     def _show_about(self) -> None:
         QMessageBox.information(
@@ -544,3 +606,7 @@ class XmlVisualizerApp(QMainWindow):
             "Visualizador de XMLS\n\nUna aplicación ligera para transformar XML con XSLT"
             " y revisar el resultado HTML.\n\nDesarrollado como un ejemplo profesional de interfaz minimalista.",
         )
+
+    def closeEvent(self, event) -> None:
+        self._save_settings()
+        super().closeEvent(event)
