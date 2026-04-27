@@ -1044,13 +1044,108 @@ class XmlVisualizerApp(QMainWindow):
         self._log.append(f"[{ts}]  ›  {message}")
 
     def _show_about(self) -> None:
-        QMessageBox.information(
-            self,
-            "Acerca de XMLens",
-            "XMLens  —  v0.3.0\n\n"
-            "Aplicación de escritorio para transformar archivos XML con XSLT\n"
-            "y visualizar el resultado HTML directamente en la app.",
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Acerca de XMLens")
+        dlg.setFixedWidth(420)
+        dlg.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
+
+        root = QVBoxLayout(dlg)
+        root.setSpacing(0)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        # ── Header band ──────────────────────────────────────────────────────
+        header = QWidget()
+        header.setObjectName("aboutHeader")
+        header.setStyleSheet(
+            "#aboutHeader { background: #1a6fc4; border-radius: 0px; }"
         )
+        h_layout = QVBoxLayout(header)
+        h_layout.setContentsMargins(24, 20, 24, 20)
+        h_layout.setSpacing(4)
+
+        name_lbl = QLabel("XMLens")
+        name_font = QFont()
+        name_font.setPointSize(22)
+        name_font.setBold(True)
+        name_lbl.setFont(name_font)
+        name_lbl.setStyleSheet("color: #ffffff;")
+
+        ver_lbl = QLabel("Versión 0.3.0")
+        ver_lbl.setStyleSheet("color: #c0d8f0; font-size: 11pt;")
+
+        h_layout.addWidget(name_lbl)
+        h_layout.addWidget(ver_lbl)
+        root.addWidget(header)
+
+        # ── Body ─────────────────────────────────────────────────────────────
+        body = QWidget()
+        b_layout = QVBoxLayout(body)
+        b_layout.setContentsMargins(24, 20, 24, 20)
+        b_layout.setSpacing(12)
+
+        desc = QLabel(
+            "Herramienta de escritorio para transformar documentos XML\n"
+            "mediante hojas de estilo XSLT y visualizar el resultado HTML\n"
+            "directamente en la aplicación."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("font-size: 10pt; line-height: 1.5;")
+        b_layout.addWidget(desc)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color: #cccccc;")
+        b_layout.addWidget(sep)
+
+        def _row(label: str, value: str, link: str = "") -> QWidget:
+            w = QWidget()
+            hl = QHBoxLayout(w)
+            hl.setContentsMargins(0, 0, 0, 0)
+            hl.setSpacing(8)
+            lbl = QLabel(f"<b>{label}</b>")
+            lbl.setFixedWidth(90)
+            lbl.setStyleSheet("font-size: 9.5pt;")
+            hl.addWidget(lbl)
+            if link:
+                val = QLabel(f'<a href="{link}" style="color:#1a6fc4;">{value}</a>')
+                val.setOpenExternalLinks(True)
+            else:
+                val = QLabel(value)
+            val.setStyleSheet("font-size: 9.5pt;")
+            val.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+                | Qt.TextInteractionFlag.LinksAccessibleByMouse
+            )
+            hl.addWidget(val, 1)
+            return w
+
+        b_layout.addWidget(_row("Autor", "Facundo Peri"))
+        b_layout.addWidget(_row("Contacto", "facundoperi01@gmail.com",
+                                "mailto:facundoperi01@gmail.com"))
+        b_layout.addWidget(_row("Tecnología", "Python · PyQt6 · lxml"))
+        b_layout.addWidget(_row("Plataforma", "Windows (x86-64)"))
+        b_layout.addWidget(_row("Licencia", "Uso interno"))
+
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        sep2.setStyleSheet("color: #cccccc;")
+        b_layout.addWidget(sep2)
+
+        copy_lbl = QLabel("© 2025 – 2026 Facundo Peri. Todos los derechos reservados.")
+        copy_lbl.setStyleSheet("color: #888888; font-size: 8.5pt;")
+        copy_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        b_layout.addWidget(copy_lbl)
+
+        close_btn = QPushButton("Cerrar")
+        close_btn.setFixedWidth(100)
+        close_btn.clicked.connect(dlg.accept)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(close_btn)
+        b_layout.addLayout(btn_row)
+
+        root.addWidget(body)
+        dlg.exec()
 
     def closeEvent(self, event) -> None:
         self._save_settings()
