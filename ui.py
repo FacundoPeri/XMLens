@@ -656,9 +656,10 @@ class XmlVisualizerApp(QMainWindow):
         self._file_label.setObjectName("muted")
         row.addWidget(self._file_label, stretch=1)
 
-        open_btn = _secondary_btn("⧉  Abrir")
-        open_btn.clicked.connect(self._open_selected_file)
-        row.addWidget(open_btn)
+        self._open_btn = _secondary_btn("⧉  Abrir")
+        self._open_btn.clicked.connect(self._open_selected_file)
+        self._open_btn.setVisible(False)
+        row.addWidget(self._open_btn)
 
         sel_btn = _primary_btn("＋  Seleccionar")
         sel_btn.clicked.connect(self._select_file)
@@ -899,6 +900,7 @@ class XmlVisualizerApp(QMainWindow):
         self._file_label.setObjectName("text")
         self._file_label.style().unpolish(self._file_label)
         self._file_label.style().polish(self._file_label)
+        self._open_btn.setVisible(True)
         self._log_append(f"Seleccionado: {path}")
         self._refresh_xslt_url()
         self._add_recent_file(path)
