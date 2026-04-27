@@ -7,7 +7,14 @@ from PyQt6.QtWidgets import QApplication
 from transformer import XmlTransformer
 from ui import XmlVisualizerApp
 
-_ICON = Path(__file__).parent / "assets" / "icon.png"
+
+def _base_dir() -> Path:
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)
+    return Path(__file__).parent
+
+
+_ICON = _base_dir() / "assets" / "icon.png"
 
 
 def main() -> None:
