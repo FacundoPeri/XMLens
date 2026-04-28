@@ -57,7 +57,8 @@ def _make_qss(t: _Theme) -> str:
         QMainWindow               {{ background: {t.bg}; }}
         QWidget#bg                {{ background: {t.bg}; }}
         QWidget#surface           {{ background: {t.surface}; }}
-        QDialog                   {{ background: {t.bg}; }}
+        QDialog                   {{ background: {t.bg}; color: {t.text}; }}
+        QLabel                    {{ color: {t.text}; background: transparent; }}
         QStackedWidget            {{ background: {t.bg}; }}
 
         QFrame#card               {{ background: {t.surface}; border: 1px solid {t.border}; }}
@@ -77,6 +78,7 @@ def _make_qss(t: _Theme) -> str:
 
         QTextEdit#log             {{ background: {t.log_bg}; color: {t.log_fg}; border: 1px solid {t.border}; font-family: Consolas; font-size: 9pt; }}
 
+        QPushButton                    {{ color: {t.text}; }}
         QPushButton#primary            {{ background: {t.accent};   color: #ffffff; border: none; padding: 8px 16px; font-size: 10pt; }}
         QPushButton#primary:hover      {{ background: {t.accent_h}; color: #ffffff; }}
         QPushButton#primary:disabled   {{ background: {t.btn2};     color: {t.muted}; }}
